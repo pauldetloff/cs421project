@@ -1,4 +1,13 @@
 {% extends "base.html"%}
 {% block content %}
     <h1>THIS IS THE MENU</h1>
+    <h3>Please enter positive integer or 0 into the fields for each item</h3>
+    <form action="{{url_for('thankyou')}}">
+        <ul>
+            {%for j in range(numberItems)%}
+            <li>{{itemNames[j]}}    price: ${{itemPrices[j]}}<input type="text" name="{{itemNames[j]}}" value="0"></li>
+            {%endfor%}
+        </ul>
+        <input type="submit" value="Submit Form">
+    </form>
 {% endblock %}
