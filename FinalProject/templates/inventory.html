@@ -1,4 +1,13 @@
 {% extends "base.html"%}
 {% block content %}
     <h1>THIS IS THE INVENTORY PAGE</h1>
+    <h3>Please enter positive integer or 0 into the fields for each item</h3>
+    <form action="{{url_for('updatedInventory')}}">
+        <ul>
+            {%for j in range(numberItems)%}
+            <li>{{itemNames[j]}}    price: $<input type="text" name="{{itemNames[j]}} price" value="{{itemPrices[j]}}"> inventory: <input type="text" name="{{itemNames[j]}} amount" value="{{itemInventory[j]}}"></li>
+            {%endfor%}
+        </ul>
+        <input type="submit" value="Submit Form">
+    </form>
 {% endblock %}

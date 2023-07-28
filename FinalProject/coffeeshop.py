@@ -1,5 +1,10 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
+from wtforms import StringField, PasswordField, SubmitField
+from wtforms.validators import DataRequired, EqualTo
+from flask_wtf import FlaskForm
+from flask_wtf.form import _Auto
+import os
 
 app = Flask(__name__)
 app.secret_key = "hello"
@@ -8,6 +13,9 @@ app.config['SQLALCHEMY_DATABASE_URI']='sqlite:///users.sqllite3'
 app.config['SQLALCHEMY_TRAC_MODIFICATIONS']=False
 
 db=SQLAlchemy(app)
+
+#USER NAME JUST MADE SOME RANDOM ONE TO GET IT TO WORK WITH THAN KYOU PAGE AND ADDING ORDERS
+
 
 #-----------------------------------------------------------------------------------------------------------
 #                                         creating classes for each db 
@@ -29,21 +37,19 @@ class Food(db.Model):
     def __repr__(self):
         return f"item {self.name} has {self.inventory} units and costs {self.price}"
     
-class People(db.Model):
-    __tablename__="people"
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(120), nullable=False)
+    #@isManager = db.Column(db.Integer, nullable=False)
     
-    id= db.Column(db.Integer, primary_key=True)
-    uName= db.Column(db.Text)
-    pWord= db.Column(db.Text)
-    isManager= db.Column(db.Integer)
-    
-    def __init__(self,uName,pWord,isManager):
-        self.uName=uName
-        self.pWord=pWord
-        self.isManager=isManager
-        
+    def __init__(self,username,password):
+        self.username=username
+        self.password=password
+        #self.isManager=isManager
+
     def __repr__(self):
-        return f"{self.uName}, {self.pWord}, {self.isManager}."
+        return f'<User {self.username}>'
     
 class Orders(db.Model):
     __tablename__="orders"
@@ -65,8 +71,19 @@ class Orders(db.Model):
         self.saleTotal=saleTotal
     
     def __repr__(self):
-        return f"{self.uName}, {self.amountHotCoffee}, {self.amountIcedCoffee}, {self.amountBagel}, {self.amountMocha}, {self.saleTotal}."
+        return f"{self.uName} ordered {self.amountHotCoffee} Hot Coffee, {self.amountIcedCoffee} Iced Coffee, {self.amountBagel}Bagel, and {self.amountMocha} Mocha. Total is ${self.saleTotal}."
     
+    
+class SignupForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    confirm_password = PasswordField('Confirm Password', validators=[DataRequired(), EqualTo('password')])
+    submit = SubmitField('Sign Up')
+
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Login')
 #-----------------------------------------------------------------------------------------------------------
 #                                         creating db and adding foods
 #-----------------------------------------------------------------------------------------------------------
@@ -79,40 +96,70 @@ hotCoffee = Food('Hot Coffee',35,1.75)
 icedCoffee = Food('Iced Coffee',33,2.50)
 bagel = Food('Bagel',121,2.00)
 mocha = Food('Mocha',12,4.25)
-bBelcher = People("bBelcher","password123",1)
-order1= Orders("bBelcher",0,0,1,2,1.25)
+bBelcher = User("bBelcher","password123")
 
 with app.app_context():
     Food.query.delete() #this clears the database bc it won't remove all the items from prior sessions
-    People.query.delete()
     Orders.query.delete()
-    #print(Food.query.count()) #this gives the count of all the foods in the database at the moment
+    User.query.delete()
     db.session.add_all([hotCoffee,icedCoffee,bagel,mocha])
     db.session.add_all([bBelcher])
-    db.session.add_all([order1])
     db.session.commit()
-    #print(hotCoffee)
-    #print(Food.query.all())
-    #hotCoffee.price = 2.00
-    #db.session.commit()
-    #print(hotCoffee)
-    #print(Food.query.count()) #this gives the count of all the foods in the database at the moment
-    #print("---------------------------")
-    #print(People.query.all())
-    #print("---------------------------")
-    #print(Orders.query.all())
-    #print(icedCoffee.name)
-    #print(bagel.name)
-    #print(mocha.name)
 
     
-#boolean value inverted. 0 means manager and 1 means not manager. careful!    
-manager = 0
-username="sampleUser"
+   
 
 
-@app.route('/')
+@app.route('/',methods=['GET', 'POST'])
 def index():
+    return render_template('startHere.html')
+
+@app.route('/signup',methods=['GET', 'POST'])
+def signup():
+    form = SignupForm()
+    with app.app_context():
+        if form.validate_on_submit():
+            username = form.username.data
+            password = form.password.data
+
+            if not User.query.filter_by(username=username).first():
+                new_user = User(username, password)
+                db.session.add(new_user)
+                db.session.commit()
+                flash('Sign up successful! Please log in.', 'success')
+                return redirect(url_for('login'))
+            else:
+                flash('Username already taken. Please choose a different one.', 'error')
+        session.pop('_flashes', None)
+    return render_template('signup.html', form=form)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+
+    if form.validate_on_submit():
+        global username
+        username = form.username.data
+        global manager
+        #boolean value inverted. 0 means manager and 1 means not manager. careful! 
+        if(username=="bBelcher"):
+            manager=0
+        else:
+            manager=1
+        password = form.password.data
+
+        user = User.query.filter_by(username=username, password=password).first()
+
+        if user is not None:
+            flash('Login successful!', 'success')
+            return redirect(url_for('home'))
+        else:
+            flash('Invalid username or password. Please try again.', 'error')
+    session.pop('_flashes', None)
+    return render_template('login.html', form=form)
+
+@app.route('/home')
+def home():
     return render_template('home.html',manager=manager)
 
 @app.route('/menu')
@@ -128,9 +175,6 @@ def menu():
             itemNames.append(currentItem.name)
             itemPrices.append(currentItem.price)
             orderAmounts.append(0)
-        print(itemNames)
-        print(itemPrices)
-        print(orderAmounts)
             
     return render_template('menu.html',manager=manager,itemNames=itemNames,numberItems=numberItems,itemPrices=itemPrices)
 
@@ -140,6 +184,7 @@ def thankyou():
     itemNames=[]
     itemPrices=[]
     orderAmounts=[]
+    itemInventory=[]
     with app.app_context():
         numberItems=Food.query.count()
         for i in range(1,numberItems+1):
@@ -147,21 +192,66 @@ def thankyou():
             itemNames.append(currentItem.name)
             itemPrices.append(currentItem.price)
             orderAmounts.append(0)
+            itemInventory.append(currentItem.inventory)
     orderAmounts[0]=int(request.args.get('Hot Coffee'))
     orderAmounts[1]=int(request.args.get('Iced Coffee'))
     orderAmounts[2]=int(request.args.get('Bagel'))
-    orderAmounts[3]=int(request.args.get('Mocha'))
+    orderAmounts[3]=int(request.args.get('Mocha')) 
     for i in range(4):
         orderTotal=orderTotal+float(orderAmounts[i])*float(itemPrices[i])
+    with app.app_context():
+        order1 = Orders(username,orderAmounts[0],orderAmounts[1],orderAmounts[2],orderAmounts[3],orderTotal)
+        db.session.add_all([order1])
+        for i in range(1, numberItems+1):
+            currentItem=Food.query.get(i)
+            currentItem.inventory = currentItem.inventory - orderAmounts[i-1]
+        db.session.commit()
     return render_template('thankyou.html',manager=manager,orderTotal=orderTotal)
 
 @app.route('/orders')
 def orders():
-    return render_template('orders.html',manager=manager)
+    numberOrders=Orders.query.count()
+    theseOrders = Orders.query.all()
+    return render_template('orders.html',manager=manager,numberOrders=numberOrders,theseOrders=theseOrders)
 
 @app.route('/inventory')
 def inventory():
-    return render_template('inventory.html',manager=manager)
+    #------------------ this will read the current db and set it up for html use
+    itemNames=[]
+    itemPrices=[]
+    orderAmounts=[]
+    itemInventory=[]
+    with app.app_context():
+        numberItems=Food.query.count()
+        for i in range(1,numberItems+1):
+            currentItem=Food.query.get(i)
+            itemNames.append(currentItem.name)
+            itemPrices.append(currentItem.price)
+            itemInventory.append(currentItem.inventory)
+            orderAmounts.append(0)
+    return render_template('inventory.html',manager=manager,itemNames=itemNames,numberItems=numberItems,itemPrices=itemPrices,itemInventory=itemInventory)
+
+@app.route('/updatedInventory')
+def updatedInventory():
+    itemNames=[]
+    itemPrices=[]
+    itemInventory=[]
+    numberItems=Food.query.count()
+    itemPrices.append(float(request.args.get('Hot Coffee price')))
+    itemPrices.append(float(request.args.get('Iced Coffee price')))
+    itemPrices.append(float(request.args.get('Bagel price')))
+    itemPrices.append(float(request.args.get('Mocha price')))
+    itemInventory.append(int(request.args.get('Hot Coffee amount')))
+    itemInventory.append(int(request.args.get('Iced Coffee amount')))
+    itemInventory.append(int(request.args.get('Bagel amount')))
+    itemInventory.append(int(request.args.get('Mocha amount')))
+    with app.app_context():
+        for i in range(1, numberItems+1):
+            currentItem=Food.query.get(i)
+            currentItem.inventory = itemInventory[i-1]
+            currentItem.price = itemPrices[i-1]
+        db.session.commit()
+    return render_template('updatedInventory.html',manager=manager)
 
 if __name__ == '__main__':
     app.run(debug=True)

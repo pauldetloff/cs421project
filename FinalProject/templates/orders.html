@@ -1,4 +1,9 @@
 {% extends "base.html"%}
 {% block content %}
     <h1>THIS IS THE ORDER PAGE</h1>
+    <ul>
+        {%for j in range(numberOrders)%}
+            <li>{{theseOrders[j]}}</li>
+        {%endfor%}
+    </ul>
 {% endblock %}
